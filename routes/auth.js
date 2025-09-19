@@ -1,5 +1,5 @@
 /**
- * 갓생 제조기 - 인증(Authentication) API 라우터 (개선 버전)
+ * 갓생 제조기 - 인증(Authentication) API 라우터
  * - 회원가입, 로그인 등 사용자 인증 관련 API
  */
 const express = require('express');

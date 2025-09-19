@@ -1,7 +1,5 @@
 /**
  * 갓생 제조기 - 메인 서버 파일
- * - 이 파일은 전체 백엔드 서버의 시작점입니다.
- * - 필요한 미들웨어를 설정하고, 기능별로 분리된 API 라우터를 연결합니다.
  */
 const express = require('express');
 const cors = require('cors');

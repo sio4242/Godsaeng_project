@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 
 const router = express.Router();
-// .env 파일에 SECRET이 없더라도 서버가 멈추지 않도록 기본값을 설정합니다.
+// .env 파일에 SECRET이 없더라도 서버가 멈추지 않도록 기본값을 설정
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key-for-development';
 
 // 입력값 검증을 위한 함수
@@ -79,7 +79,7 @@ router.post('/login', async (req, res) => {
       return res.status(404).json({ message: '존재하지 않는 사용자입니다.' });
     }
 
-    // 3. 비밀번호 대조 (컬럼명을 password_hash로 변경)
+    // 3. 비밀번호 대조
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       return res.status(401).json({ message: '비밀번호가 올바르지 않습니다.' });

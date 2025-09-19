@@ -22,3 +22,4 @@ ALTER TABLE Users MODIFY nickname VARCHAR(10) NOT NULL UNIQUE;
 -- 별명을 최대 10글자로 제한
 
 ALTER TABLE Users CHANGE password password_hash VARCHAR(255) NOT NULL;
+-- password 에서 password_hash로 이름 변경users

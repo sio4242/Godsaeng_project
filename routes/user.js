@@ -1,55 +1,118 @@
-/*
+/**
  * 갓생 제조기 - 사용자 정보 관련 API 라우터
+ * 사용자 프로필 조회, 닉네임 변경, 비밀번호 변경 등 담당
  */
+const express = require('express');
+const bcrypt = require('bcrypt');
+const pool = require('../config/db');
+const authMiddleware = require('../middleware/auth');
 
-// --- 모듈 임포트 ---
-const express = require('express'); // Express 프레임워크
-const pool = require('../config/db'); // 미리 설정된 DB 커넥션 풀
-const authMiddleware = require('../middleware/auth'); // JWT 인증 미들웨어
-
-// --- 라우터 초기화 ---
-const router = express.Router(); // Express의 라우터 기능 사용
+const router = express.Router();
 
 // ----------------------------------------------------------------
-// [GET] /api/user/me : 현재 로그인한 사용자의 정보를 조회하는 API
+// [GET] /api/user/me : 현재 로그인한 사용자의 프로필 정보를 조회
 // ----------------------------------------------------------------
-// authMiddleware: 이 API에 접근하기 전, '보안 요원'이 먼저 토큰을 검사함
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    // 1. 사용자 ID 추출
-    // authMiddleware가 토큰 검증 후, req.user 객체에 해독된 사용자 정보를 넣어줌
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
-    // 2. 데이터베이스 쿼리 준비
-    // 보안을 위해 비밀번호(password_hash)는 절대 조회하지 않음
-    const sql = 'SELECT id, email, nickname, createdAt FROM Users WHERE id = ?';
+    // Users 테이블과 Characters 테이블을 JOIN하여 필요한 정보를 한 번에 가져옴
+    const sql = `
+      SELECT 
+        u.id, 
+        u.email, 
+        u.nickname, 
+        u.createdAt,
+        c.level,
+        c.exp
+      FROM Users u
+      LEFT JOIN Characters c ON u.id = c.userId
+      WHERE u.id = ?
+    `;
     
-    // 3. 데이터베이스에 쿼리 실행
-    // pool.execute를 사용해 안전하게 SQL 인젝션 공격 방어
     const [rows] = await pool.execute(sql, [userId]);
 
-    // 4. 사용자 존재 여부 확인
-    // DB에서 해당 ID의 사용자를 찾지 못한 경우
     if (rows.length === 0) {
-      return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+      return res.status(404).json({ message: '사용자 정보를 찾을 수 없습니다.' });
     }
 
-    // 5. 성공 응답 전송
-    // 조회된 사용자 정보(rows의 첫 번째 요소)를 프론트엔드에 JSON 형태로 전송
     res.status(200).json(rows[0]);
 
   } catch (error) {
-    // 6. 서버 오류 처리
-    // DB 연결 실패 등 예상치 못한 오류 발생 시
     console.error('내 정보 조회 API 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
 
-// (향후 닉네임 변경, 비밀번호 변경 API 등을 이 파일에 추가)
+// ----------------------------------------------------------------
+// [PUT] /api/user/nickname : 닉네임 변경 API
+// ----------------------------------------------------------------
+router.put('/nickname', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { newNickname } = req.body;
+
+        // 1. 새 닉네임 유효성 검사
+        if (!newNickname || newNickname.length < 2 || newNickname.length > 10) {
+            return res.status(400).json({ message: '닉네임은 2~10자 사이여야 합니다.' });
+        }
+
+        // 2. DB 업데이트
+        const sql = 'UPDATE Users SET nickname = ? WHERE id = ?';
+        await pool.execute(sql, [newNickname, userId]);
+
+        res.status(200).json({ message: '닉네임이 성공적으로 변경되었습니다.' });
+
+    } catch (error) {
+        console.error('닉네임 변경 API 오류:', error);
+        // 닉네임 중복 오류 처리
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: '이미 사용 중인 닉네임입니다.' });
+        }
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
 
 
-// --- 라우터 내보내기 ---
-// app.js에서 이 라우터 설정을 사용할 수 있도록 모듈로 내보냄
+// ----------------------------------------------------------------
+// [PUT] /api/user/password : 비밀번호 변경 API
+// ----------------------------------------------------------------
+router.put('/password', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { currentPassword, newPassword } = req.body;
+
+        // 1. 입력값 확인
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.' });
+        }
+
+        // 2. 새 비밀번호 유효성 검사
+        if (newPassword.length < 6 || newPassword.length > 12) {
+            return res.status(400).json({ message: '새 비밀번호는 6~12자 사이여야 합니다.' });
+        }
+
+        // 3. 현재 비밀번호 검증
+        const userSql = 'SELECT password_hash FROM Users WHERE id = ?';
+        const [rows] = await pool.execute(userSql, [userId]);
+        const user = rows[0];
+
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: '현재 비밀번호가 일치하지 않습니다.' });
+        }
+
+        // 4. 새 비밀번호 암호화 및 DB 업데이트
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        const updateSql = 'UPDATE Users SET password_hash = ? WHERE id = ?';
+        await pool.execute(updateSql, [hashedNewPassword, userId]);
+
+        res.status(200).json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+
+    } catch (error) {
+        console.error('비밀번호 변경 API 오류:', error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
+
 module.exports = router;
-

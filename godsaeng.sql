@@ -66,3 +66,50 @@ CREATE TABLE StudyLogs (
 	FOREIGN KEY(userId) REFERENCES Users(id) ON DELETE CASCADE
 );
 
+-- 3.4. Todos 테이블: 사용자의 할 일(To-Do)을 저장합니다. (Users와 1:N 관계)
+CREATE TABLE Todos (
+    -- id: 각 할 일을 구분하기 위한 고유 번호
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    -- userId: 이 할 일을 작성한 사용자의 ID
+    userId INT NOT NULL,
+    -- title: 할 일의 내용
+    title VARCHAR(255) NOT NULL,
+    -- isCompleted: 할 일의 완료 여부 (true/false)
+    isCompleted BOOLEAN DEFAULT false,
+    -- dueDate: 할 일의 마감 날짜
+    dueDate DATE,
+    -- createdAt: 할 일이 생성된 날짜와 시간
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- FOREIGN KEY: Users 테이블과 연결하여 데이터의 일관성을 보장
+    FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+
+-- 3.5. WordSets 테이블: 사용자가 생성한 단어장을 저장합니다. (Users와 1:N 관계)
+CREATE TABLE WordSets (
+    -- id: 각 단어장을 구분하기 위한 고유 번호
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    -- userId: 이 단어장을 생성한 사용자의 ID
+    userId INT NOT NULL,
+    -- setTitle: 단어장의 제목
+    setTitle VARCHAR(100) NOT NULL,
+    -- createdAt: 단어장이 생성된 날짜와 시간
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- FOREIGN KEY: Users 테이블과 연결
+    FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+
+-- 3.6. Words 테이블: 각 단어장에 포함된 개별 단어를 저장합니다. (WordSets와 1:N 관계)
+CREATE TABLE Words (
+    -- id: 각 단어를 구분하기 위한 고유 번호
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    -- wordSetId: 이 단어가 속한 단어장의 ID
+    wordSetId INT NOT NULL,
+    -- question: 문제 (단어의 뜻 등)
+    question VARCHAR(255) NOT NULL,
+    -- answer: 정답 (단어)
+    answer VARCHAR(255) NOT NULL,
+    -- FOREIGN KEY: WordSets 테이블과 연결
+    FOREIGN KEY (wordSetId) REFERENCES WordSets(id) ON DELETE CASCADE
+);

@@ -2,7 +2,7 @@
 -- 데이터베이스 및 테이블 초기화 (기존 구조 삭제)
 -- =================================================================================
 
--- 외래 키 제약 조건 검사를 일시적으로 비활성화합니다.
+-- 외래 키 제약 조건 검사를 일시적으로 비활성화
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 테이블을 생성 역순으로 삭제합니다. (외래 키 종속성 때문)
@@ -28,7 +28,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- 데이터베이스 및 테이블 생성
 -- =================================================================================
 
--- 'godsaeng_db' 라는 이름의 데이터베이스(저장 공간)를 생성합니다.
+-- 'godsaeng_db' 라는 이름의 데이터베이스(저장 공간)를 생성
 CREATE DATABASE IF NOT EXISTS godsaeng_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- 생성한 데이터베이스를 사용하겠다고 지정합니다.
@@ -59,7 +59,9 @@ CREATE TABLE Characters (
 CREATE TABLE StudyLogs (
     id INT AUTO_INCREMENT PRIMARY KEY COMMENT '학습 기록 고유 식별자',
     userId INT NOT NULL COMMENT 'Users 테이블의 id 참조',
-    durationMinutes INT NOT NULL COMMENT '학습 시간 (분 단위)',
+    startTime TIMESTAMP NULL DEFAULT NULL COMMENT '측정 시작 시간',
+    endTime TIMESTAMP NULL DEFAULT NULL COMMENT '측정 종료 시간',
+    duration INT NULL DEFAULT NULL COMMENT '총 학습 시간 (초 단위)',
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '기록 생성 일시',
     FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
 );

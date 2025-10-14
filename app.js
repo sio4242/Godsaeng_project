@@ -6,6 +6,9 @@ const cors = require('cors');
 require('dotenv').config();
 const authRoutes = require('./routes/auth'); // 인증 라우터 가져오기
 const userRoutes = require('./routes/user');
+const todosRoutes = require('./routes/todos');
+const diaryRoutes = require('./routes/diary');
+const studyRoutes = require('./routes/study');
 
 // Express 앱 생성 및 기본 설정
 const app = express();
@@ -16,6 +19,9 @@ app.use(express.json());
 // '/api/auth'로 시작하는 모든 요청은 authRoutes가 처리하도록 설정
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/todos', todosRoutes);
+app.use('/api/diaries', diaryRoutes);
+app.use('/api/study', studyRoutes);
 
 // 서버 실행
 const PORT = 3001;

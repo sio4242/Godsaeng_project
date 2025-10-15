@@ -1,10 +1,11 @@
 /**
  * 갓생 제조기 - 순공시간 (Study Log) 관리 API 라우터
- * - 스톱워치 시작 및 종료, 학습 기록 조회 담당
+ * - 스톱워치 종료 시 1분 = 1 EXP 로직
  */
 const express = require('express');
 const pool = require('../config/db');
 const authMiddleware = require('../middleware/auth');
+const { updateExpAndCheckLevelUp } = require('../utils/characterUtils'); 
 
 const router = express.Router();
 
@@ -12,27 +13,20 @@ const router = express.Router();
 // [POST] /api/study/start : 순공시간 측정 시작
 // ----------------------------------------------------------------
 router.post('/start', authMiddleware, async (req, res) => {
-    // 1. JWT 인증 미들웨어를 통해 사용자 ID 획득
     const userId = req.user.id;
 
     try {
-        // 2. StudyLogs 테이블에 새로운 세션 시작 시간 기록
-        // endTime과 duration은 NULL 상태로 시작
         const sql = 'INSERT INTO StudyLogs (userId, startTime) VALUES (?, NOW())';
         const [result] = await pool.execute(sql, [userId]); 
         
-        const logId = result.insertId;
-
-        // 3. 프론트엔드에 생성된 로그 ID를 반환. 
-        //    프론트엔드는 이 ID를 스톱워치 종료 시 다시 서버로 보내야 함.
         res.status(201).json({ 
-            logId: logId,
-            message: '순공시간 측정을 시작했습니다.' 
+            logId: result.insertId,
+            message: '공부 시작!' 
         });
 
     } catch (error) {
         console.error('순공시간 시작 API 오류:', error);
-        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+        res.status(500).json({ message: '서버 오류가 발생' });
     }
 });
 
@@ -41,14 +35,14 @@ router.post('/start', authMiddleware, async (req, res) => {
 // ----------------------------------------------------------------
 router.put('/stop/:logId', authMiddleware, async (req, res) => {
     const userId = req.user.id;
-    const logId = req.params.logId; // URL 경로에서 로그 ID를 받음
+    const logId = req.params.logId;
 
     let connection;
     try {
         connection = await pool.getConnection();
-        await connection.beginTransaction(); // 트랜잭션 시작 (원자성 보장)
+        await connection.beginTransaction(); 
 
-        // 1. 해당 로그 ID의 시작 시간(startTime)을 조회 (현재 사용자가 소유하고, 아직 종료되지 않은 세션만)
+        // 1. 해당 로그 ID의 시작 시간(startTime) 조회 및 유효성 검사
         const [logs] = await connection.execute(
             'SELECT startTime FROM StudyLogs WHERE id = ? AND userId = ? AND endTime IS NULL',
             [logId, userId]
@@ -61,46 +55,55 @@ router.put('/stop/:logId', authMiddleware, async (req, res) => {
         
         const startTime = new Date(logs[0].startTime);
         const endTime = new Date();
-        
-        // 2. 경과 시간 계산 (밀리초(ms) 단위로 계산 후 초 단위로 변환)
         const durationSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
         
-        // 3. 5초 미만의 짧은 시간은 무시 (노이즈 필터링)
-        if (durationSeconds < 5) {
+        // 1분 미만의 짧은 시간은 무시
+        if (durationMinutes < 1) {
             await connection.rollback(); 
             return res.status(200).json({ 
-                message: '너무 짧은 시간(5초 미만)은 기록되지 않습니다.', 
-                durationSeconds: 0 
+                message: '1분 미만은 기록되지 않습니다. (0 EXP)', 
+                durationSeconds: 0,
+                expGained: 0
             });
         }
 
-        // 4. StudyLogs 업데이트 (종료 시간과 기간 기록)
-        const [updateResult] = await connection.execute(
+        // 2. StudyLogs 업데이트 (종료 시간과 기간 기록)
+        await connection.execute(
             'UPDATE StudyLogs SET endTime = NOW(), duration = ? WHERE id = ? AND userId = ?',
             [durationSeconds, logId, userId]
         );
+        
+        // 3. 핵심 갓생 로직: 경험치 (XP) 계산
+        // 1분(60초)당 1 EXP 지급 규칙 적용
+        const expAmount = Math.floor(durationSeconds / 60); 
 
-        // 5. ⭐️ 핵심 갓생 로직: 경험치 (XP) 지급 및 레벨업 체크
-        // TODO: durationSeconds를 기반으로 Character 테이블의 경험치(exp)를 업데이트하는 로직을 여기에 추가해야 해!
-        // 예시) 1분당 10 XP 지급 등.
+        // StudyLogs 트랜잭션 커밋
+        await connection.commit(); 
+        connection.release();
 
-        await connection.commit(); // 트랜잭션 성공적으로 완료
+        // 4. 경험치 부여 및 레벨업 체크 (별도 트랜잭션)
+        const expResult = await updateExpAndCheckLevelUp(userId, expAmount);
         
         res.status(200).json({ 
-            message: '순공시간 측정을 종료하고 기록했습니다.',
+            message: '공부를 종료했습니다!',
             durationSeconds: durationSeconds,
-            durationMinutes: (durationSeconds / 60).toFixed(2) // 분 단위도 함께 제공
+            durationMinutes: (durationSeconds / 60).toFixed(2),
+            expGained: expAmount, 
+            newLevel: expResult.newLevel,
+            newExp: expResult.newExp,
+            levelUpMessage: expResult.levelUpOccurred ? '축하합니다! 레벨업 했습니다!' : undefined
         });
 
     } catch (error) {
         if (connection) {
-            await connection.rollback(); // 오류 발생 시 롤백
+            await connection.rollback(); 
+            connection.release();
         }
         console.error('순공시간 종료 API 오류:', error);
         res.status(500).json({ message: '서버 오류가 발생했습니다.' });
     } finally {
         if (connection) {
-            connection.release();
+            
         }
     }
 });

@@ -5,7 +5,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const authMiddleware = require('../middleware/auth');
-
+const { updateExpAndCheckLevelUp } = require('../utils/characterUtils');
 const router = express.Router();
 
 // ----------------------------------------------------------------
@@ -81,8 +81,13 @@ router.put('/stop/:logId', authMiddleware, async (req, res) => {
         );
 
         // 5. ⭐️ 핵심 갓생 로직: 경험치 (XP) 지급 및 레벨업 체크
-        // TODO: durationSeconds를 기반으로 Character 테이블의 경험치(exp)를 업데이트하는 로직을 여기에 추가해야 해!
-        // 예시) 1분당 10 XP 지급 등.
+        let levelUpInfo = null;
+        const studyMinutes = Math.floor(durationSeconds / 60);
+        if (studyMinutes > 0) {
+             const expAmount = studyMinutes * 1; // 1분당 1 경험치 지급 (예시)
+             // ⭐️ 3. 경험치 업데이트 함수 호출 (connection 전달 필요, 함수 수정 필요)
+             levelUpInfo = await updateExpAndCheckLevelUp(userId, expAmount, connection); // connection 전달하도록 함수 수정 필요
+        }
 
         await connection.commit(); // 트랜잭션 성공적으로 완료
         

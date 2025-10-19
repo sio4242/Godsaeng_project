@@ -9,6 +9,7 @@ const userRoutes = require('./routes/user');
 const todosRoutes = require('./routes/todos');
 const diaryRoutes = require('./routes/diary');
 const studyRoutes = require('./routes/study');
+const wordsRoutes = require('./routes/words');
 
 // Express 앱 생성 및 기본 설정
 const app = express();
@@ -22,6 +23,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/todos', todosRoutes);
 app.use('/api/diaries', diaryRoutes);
 app.use('/api/study', studyRoutes);
+app.use('/api/words', wordsRoutes);
+
 
 // 서버 실행
 const PORT = 3001;
